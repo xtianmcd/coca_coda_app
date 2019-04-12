@@ -2,29 +2,83 @@ from flask import render_template, jsonify, Response, request
 from app import app
 import random
 from camera import VideoCamera
+from tensorflow import keras
+from app import app
+import random
+import os
+from keras.applications.mobilenetv2 import MobileNetV2
+from keras.preprocessing import image
+from keras.applications.mobilenetv2 import preprocess_input, decode_predictions
+import numpy as np
 
 
-@app.route('/')
+app.config['UPLOAD_FOLDER'] = '/Users/xtian/Documents/GitHub/coca_coda_app/app/uploads/'
+ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 
 @app.route('/upload')
 def upload_file2():
     return render_template('index.html')
 
-@app.route('/uploaded', methods = ['GET','POST'])
+@app.route('/uploaded', methods=['GET', 'POST'])
 def upload_file():
-    if request.method=='POST':
-        f = request.files['file']
-        path = os.path.join(app.config['UPLOAD_FOLDER'], f.filename)
-        #model = ##model weights##
-        img = image.load_img(f.filename)
-        #preds = ##run inference##
-
+    if request.method == 'POST':
+        f = request.files["file"]
+        path = os.path.join(app.config['UPLOAD_FOLDER'],f.filename)
+        base_model = tf.keras.applications.MobileNetV2(input_shape=(224,224,3),
+                                                    include_top=False,
+                                                    weights='imagenet')
+        top = tf.keras.Sequential([tf.keras.layers.GlobalAveragePooling2D(),
+                                    tf.keras.layers.Dense(1,activation='sigmoid')
+                                    ])
+        top.set_weights('my_model_weights.h5')
+        model = tf.keras.Sequential([base_model,top])
+        img = image.load_img(path, target_size=(224,224))
+        x = image.img_to_array(img)
+        x = np.expand_dims(x,axis=0)
+        x = preprocess_input(x)
+        preds = model.predict(img)
+        # preds_decoded = decode_predictions(preds, top=3)[0]
+        # print(preds_decoded)
         f.save(path)
-        return render_template('uploaded.html', title='Success',predictions=preds_decoded, user_image=f.filename)
+        return render_template('index.html', title='Success',predictions=preds, user_image=f.filename)
 
 @app.route('/index')
 def index():
     return render_template('index.html', title='Inference Generator')
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+    #     # check if the post request has the file part
+    #     if 'file' not in request.files:
+    #         flash('No file part')
+    #         return redirect(request.url)
+    #     file = request.files['file']
+    #     # if user does not select file, browser also
+    #     # submit an empty part without filename
+    #     if file.filename == '':
+    #         flash('No selected file')
+    #         return redirect(request.url)
+    #     if file and allowed_file(file.filename):
+    #         filename = secure_filename(file.filename)
+    #         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    #         return redirect(url_for('uploaded_file',
+    #                                 filename=filename))
+    # return render_template('index.html', title='Inference Generator')
+
+
+
+# @app.route('/uploaded', methods = ['GET','POST'])
+# def upload_file():
+#     if request.method=='POST':
+#         f = request.files['file']
+#         path = os.path.join(app.config['UPLOAD_FOLDER'], f.filename)
+#         #model = ##model weights##
+#         # img = image.load_img(f.filename)
+#         #preds = ##run inference##
+#         f.save(path)
+#         return render_template('uploaded.html', title='Success')#,predictions=preds_decoded, user_image=f.filename)
 
 def gen(camera):
     while True:
